@@ -19,6 +19,7 @@ type EngineDeps = {
 
 interface AgentReviewer {
   processStep(
+    em: EntityManager,
     jobId: string,
     step: PipelineStepDefinition,
     items: ProcessingItem[],
@@ -263,7 +264,8 @@ export function createProcessingEngine(deps: EngineDeps) {
       status: { $nin: ['failed', 'skipped'] },
     })
 
-    const result = await deps.agentReviewer.processStep(ctx.jobId, step, items, ctx.scope)
+    const localEmForAgent = getEm()
+    const result = await deps.agentReviewer.processStep(localEmForAgent, ctx.jobId, step, items, ctx.scope)
 
     await emitItemProcessingEvent('item_processing.job.step_completed', {
       jobId: ctx.jobId,
