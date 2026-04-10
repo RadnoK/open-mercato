@@ -707,6 +707,13 @@ Mapped via `widgets/injection-table.ts` to target spots like `data-table:*:bulk-
 | `subscribers/job-anomaly-detection.ts` | — | Post-completion anomaly analysis (Tier 5) |
 | `widgets/injection/ProcessItemsAction.tsx` | — | "Process items" bulk action widget |
 | `widgets/injection-table.ts` | — | Widget-to-slot mappings |
+| `components/PipelineStepsEditor.tsx` | — | Sortable step list (ChevronUp/Down reorder) |
+| `components/StepCard.tsx` | — | Expandable step card with type-specific fields |
+| `components/ProviderPicker.tsx` | — | Provider selector with category grouping |
+| `components/ProviderConfigForm.tsx` | — | Dynamic form per provider type |
+| `components/ConditionBuilder.tsx` | — | Inline condition editor |
+| `components/KeyValueEditor.tsx` | — | Reusable key-value pair editor |
+| `components/MappingEditor.tsx` | — | Input/output mapping editor |
 
 ---
 
@@ -725,7 +732,205 @@ Mapped via `widgets/injection-table.ts` to target spots like `data-table:*:bulk-
 | `backend/item-processing/page.tsx` | Job list — DataTable with status, pipeline, progress, dates |
 | `backend/item-processing/jobs/create/page.tsx` | Create job: select pipeline, add items |
 | `backend/item-processing/jobs/[id]/page.tsx` | Job detail: item table with per-step status, review UI with suggestions |
-| `backend/item-processing/pipelines/page.tsx` | Pipeline configuration management |
+| `backend/item-processing/pipelines/page.tsx` | Pipeline list — DataTable with name, steps count, status |
+| `backend/item-processing/pipelines/create/page.tsx` | Pipeline create — CrudForm with StepsEditor |
+| `backend/item-processing/pipelines/[id]/page.tsx` | Pipeline detail — CrudForm with StepsEditor + edit mode |
+
+---
+
+## Pipeline Management UI
+
+### Overview
+
+The pipeline management UI allows users to create, edit, and clone processing pipelines through a visual step editor. The design follows the existing `StepsEditor` pattern from the workflows module (arrow-button reordering, inline step cards) combined with `CrudForm` for pipeline metadata.
+
+### Pipeline List Page
+
+`backend/item-processing/pipelines/page.tsx`
+
+DataTable with columns:
+- **Name** — pipeline name (link to detail)
+- **Key** — `pipeline_key` (monospace)
+- **Steps** — step count badge
+- **Status** — active/inactive toggle
+- **Created** — date
+- **Actions** — Edit, Clone, Deactivate
+
+Row actions:
+- **Clone** → `POST /api/item_processing/pipelines/:id/clone` → opens detail page of the clone
+- **Deactivate/Activate** → toggle `is_active`
+
+### Pipeline Create/Edit Page
+
+`backend/item-processing/pipelines/create/page.tsx` and `backend/item-processing/pipelines/[id]/page.tsx`
+
+Uses `CrudForm` with two sections:
+
+#### Section 1: Pipeline Metadata
+
+| Field | Type | Notes |
+|-------|------|-------|
+| Name | text input | required |
+| Pipeline Key | text input | slug-format, unique per tenant, readonly on edit |
+| Description | textarea | optional |
+| Webhook URL | text input | optional, called on job completion |
+
+#### Section 2: Steps Editor (StepsEditor component)
+
+Reusable component: `components/PipelineStepsEditor.tsx`
+
+Follows the workflows `StepsEditor` pattern:
+- Vertical list of step cards
+- **ChevronUp / ChevronDown** buttons to reorder (no drag & drop — consistent with existing codebase)
+- **Plus** button to add a step (appended at end)
+- **Trash** button to remove a step
+- Each step is an expandable card
+
+#### Step Card (collapsed)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ [▲] [▼]  ① translate  ·  ai_translate  ·  automated  [✏️] [🗑️] │
+└─────────────────────────────────────────────────────────┘
+```
+
+Shows: step index, stepKey, providerKey, step type. Click or edit icon to expand.
+
+#### Step Card (expanded)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ [▲] [▼]  Step 1                                    [🗑️] │
+│                                                         │
+│  Step Key:    [translate          ]                     │
+│  Label:       [Translate to Polish]                     │
+│  Type:        [automated ▼]  (automated | review | agent_review) │
+│                                                         │
+│  ── Provider (visible when type = automated) ──────── │
+│  Provider:    [ai_translate ▼]   (picker from registry) │
+│  Config:      [{ "targetLang": "pl", "fields": [...]}] │
+│               (JSON editor or structured form per provider) │
+│                                                         │
+│  ── Agent Config (visible when type = agent_review) ── │
+│  Strategy:    [pick_if_confident ▼]                     │
+│  Prompt:      [textarea with instructions]              │
+│  Auto-approve threshold: [85]                           │
+│  Escalate below:         [50]                           │
+│  Max auto-approvals:     [100]                          │
+│                                                         │
+│  ── Mappings (collapsible) ────────────────────────── │
+│  Input Mapping:  [key-value pair editor]                │
+│  Output Mapping: [key-value pair editor]                │
+│                                                         │
+│  ── Advanced (collapsible) ────────────────────────── │
+│  Optional:   [ ] (checkbox)                             │
+│  Retry:      max [3] retries, backoff [1000] ms         │
+│  Condition:  [field] [op ▼] [value]  [+ Add condition]  │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Provider Picker
+
+The provider selector in each step card fetches available providers from `GET /api/item_processing/providers` and shows:
+
+```
+┌──────────────────────────────────────┐
+│  Select Provider                     │
+│                                      │
+│  ── Built-in ──────────────────────  │
+│  ○ ai_transform    Generic AI        │
+│  ○ ai_translate    AI Translation    │
+│  ○ schema_validate Schema Validation │
+│  ○ http_webhook    HTTP Call         │
+│                                      │
+│  ── External ──────────────────────  │
+│  ○ isztar_hs_classification  ISZTAR4 │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+When a provider is selected, the Config section adapts. For known providers (built-in), show a structured form. For unknown providers, show a JSON editor.
+
+### Provider Config Forms (per provider)
+
+**ai_transform:**
+| Field | Type |
+|-------|------|
+| Model | select (optional, default from tenant config) |
+| Prompt | textarea with `{{field}}` interpolation hints |
+| Output Schema | key-value editor (field name → type) |
+
+**ai_translate:**
+| Field | Type |
+|-------|------|
+| Target Language | select (ISO codes) |
+| Source Language | select (default: auto) |
+| Fields | multi-select / tags input (which fields to translate) |
+
+**schema_validate:**
+| Field | Type |
+|-------|------|
+| Schema | key-value editor (field → `{ type, required, min, max, minLength }`) |
+
+**http_webhook:**
+| Field | Type |
+|-------|------|
+| URL | text input |
+| Method | select (GET/POST/PUT) |
+| Headers | key-value editor |
+| Body Template | JSON editor with `{{field}}` hints |
+| Response Mapping | key-value editor |
+| Timeout | number input (ms) |
+
+### Condition Builder
+
+For steps with conditions, an inline builder:
+
+```
+┌──────────────────────────────────────────────────┐
+│  Run this step only when:                        │
+│                                                  │
+│  [classify_hs.confidence] [< ▼] [70]    [✕]    │
+│  AND                                             │
+│  [translate.status      ] [eq ▼] [success] [✕]  │
+│                                                  │
+│  [+ Add condition]                               │
+└──────────────────────────────────────────────────┘
+```
+
+Field input uses a combobox with available `stepKey.field` paths from preceding steps. Operator dropdown shows `eq | neq | gt | gte | lt | lte | exists | contains`.
+
+### Key-Value Pair Editor
+
+Reusable component for inputMapping, outputMapping, headers, etc:
+
+```
+┌──────────────────────────────────────┐
+│  Input Mapping                       │
+│                                      │
+│  [text     ] → [description     ] [✕]│
+│  [quantity ] → [item_count      ] [✕]│
+│                                      │
+│  [+ Add mapping]                     │
+└──────────────────────────────────────┘
+```
+
+### Pipeline Template Clone
+
+When cloning a template, the create page opens pre-filled with all steps from the source pipeline. The user can modify steps before saving. The `pipeline_key` field is cleared and must be set to a new value.
+
+### Components
+
+| Component | File | Description |
+|-----------|------|-------------|
+| PipelineStepsEditor | `components/PipelineStepsEditor.tsx` | Sortable step list (ChevronUp/Down reorder) |
+| StepCard | `components/StepCard.tsx` | Expandable step card with type-specific fields |
+| ProviderPicker | `components/ProviderPicker.tsx` | Provider selector with category grouping |
+| ProviderConfigForm | `components/ProviderConfigForm.tsx` | Dynamic form per provider type |
+| ConditionBuilder | `components/ConditionBuilder.tsx` | Inline condition editor |
+| KeyValueEditor | `components/KeyValueEditor.tsx` | Reusable key-value pair editor |
+| MappingEditor | `components/MappingEditor.tsx` | Input/output mapping editor |
 
 ---
 
@@ -799,12 +1004,24 @@ Mapped via `widgets/injection-table.ts` to target spots like `data-table:*:bulk-
 - [ ] `subscribers/job-anomaly-detection.ts` — persistent subscriber on job.completed
 - [ ] Anomaly report in job.result_summary.anomalies
 
-### Phase 7: UI
+### Phase 7: UI — Jobs
 
 - [ ] Job list page (DataTable with status, pipeline, progress)
 - [ ] Job create page (pipeline selector + item input)
 - [ ] Job detail page (item table + per-step status + review UI with suggestions)
-- [ ] Pipeline config page
+
+### Phase 7b: UI — Pipeline Management
+
+- [ ] Pipeline list page (DataTable with name, steps count, status, clone action)
+- [ ] PipelineStepsEditor component (sortable step list with ChevronUp/Down reorder)
+- [ ] StepCard component (expandable card with type-specific fields)
+- [ ] ProviderPicker component (provider selector with category grouping)
+- [ ] ProviderConfigForm component (dynamic form per provider: ai_transform, ai_translate, schema_validate, http_webhook)
+- [ ] ConditionBuilder component (inline condition editor with field combobox + operator)
+- [ ] KeyValueEditor + MappingEditor components (reusable for mappings, headers)
+- [ ] Pipeline create page (CrudForm + PipelineStepsEditor)
+- [ ] Pipeline detail/edit page (CrudForm + PipelineStepsEditor + edit mode)
+- [ ] Pipeline clone flow (pre-filled create page from template)
 
 ### Phase 8: Demo Provider (ISZTAR4) + Templates
 
@@ -873,3 +1090,7 @@ Mapped via `widgets/injection-table.ts` to target spots like `data-table:*:bulk-
 - Added: 3 new module files (agent-reviewer.ts, pipeline-designer.ts, anomaly-detector.ts)
 - Added: 2 new events (item.agent_decided, item.agent_escalated)
 - Added: AgentReviewConfig with 4 strategies (pick_best, pick_if_confident, always_escalate, custom)
+- Added: Pipeline Management UI section — full spec for pipeline builder with StepsEditor, ProviderPicker, ConditionBuilder, per-provider config forms
+- Added: Phase 7b (UI — Pipeline Management) with 10 implementation tasks
+- Added: 7 new component files (PipelineStepsEditor, StepCard, ProviderPicker, ProviderConfigForm, ConditionBuilder, KeyValueEditor, MappingEditor)
+- Expanded UI Pages with pipeline create/edit pages

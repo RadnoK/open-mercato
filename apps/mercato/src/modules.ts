@@ -50,7 +50,7 @@ export const enabledModules: ModuleEntry[] = [
   { id: 'customer_accounts', from: '@open-mercato/core' },
   { id: 'portal', from: '@open-mercato/core' },
   { id: 'item_processing', from: '@open-mercato/core' },
-  { id: 'provider_isztar4', from: '@open-mercato/provider-isztar4' },
+  // { id: 'provider_isztar4', from: '@open-mercato/provider-isztar4' }, // TODO: uncomment when package is available locally
   { id: 'example', from: '@app' },
 ]
 
