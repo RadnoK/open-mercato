@@ -20,7 +20,7 @@ export const agentReviewConfigSchema = z.object({
   includeSuggestions: z.boolean().default(true),
   strategy: z.enum(['pick_best', 'pick_if_confident', 'always_escalate', 'custom']),
   maxAutoApprovals: z.number().int().min(1).max(100000).optional(),
-  outputSchema: z.record(z.string()).optional(),
+  outputSchema: z.record(z.string(), z.string()).optional(),
 }).refine(
   (data) => data.escalateToHumanBelow <= data.autoApproveThreshold,
   { message: 'escalateToHumanBelow must be <= autoApproveThreshold' },
@@ -35,9 +35,9 @@ export const pipelineStepSchema = z.object({
   label: z.string().min(1).max(200),
   type: z.enum(['automated', 'review', 'agent_review']),
   providerKey: z.string().min(1).max(100).optional(),
-  providerConfig: z.record(z.unknown()).optional(),
-  inputMapping: z.record(z.string()).optional(),
-  outputMapping: z.record(z.string()).optional(),
+  providerConfig: z.record(z.string(), z.unknown()).optional(),
+  inputMapping: z.record(z.string(), z.string()).optional(),
+  outputMapping: z.record(z.string(), z.string()).optional(),
   optional: z.boolean().optional(),
   retryPolicy: z.object({
     maxRetries: z.number().int().min(0).max(10),
@@ -82,7 +82,7 @@ export const updatePipelineSchema = z.object({
 export const createJobSchema = z.object({
   pipelineKey: z.string().min(1),
   name: z.string().max(200).optional(),
-  items: z.array(z.record(z.unknown())).min(1).max(10000),
+  items: z.array(z.record(z.string(), z.unknown())).min(1).max(10000),
   sourceType: z.enum(['manual', 'document_parser', 'csv', 'api']).optional(),
   sourceId: uuid().optional(),
   autoStart: z.boolean().optional(),
@@ -91,13 +91,13 @@ export const createJobSchema = z.object({
 // ─── Review ─────────────────────────────────────────────────────────────────
 
 export const submitItemReviewSchema = z.object({
-  selectedValue: z.record(z.unknown()),
+  selectedValue: z.record(z.string(), z.unknown()),
 })
 
 export const bulkSubmitReviewSchema = z.object({
   selections: z.array(z.object({
     itemId: uuid(),
-    selectedValue: z.record(z.unknown()),
+    selectedValue: z.record(z.string(), z.unknown()),
   })).min(1),
   resume: z.boolean().optional().default(true),
 })

@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql'
+import { raw } from '@mikro-orm/core'
 import { ProcessingJob, ProcessingItem } from '../data/entities'
 import type { TenantScope, JobStatus, ItemStatus, PipelineStepDefinition } from './types'
 
@@ -149,9 +150,9 @@ export function createJobService(em: EntityManager) {
 
   async function updateCounters(jobId: string, delta: CounterDelta, scope: TenantScope): Promise<void> {
     const updates: Record<string, unknown> = {}
-    if (delta.processed) updates.processedItems = em.raw(`processed_items + ${delta.processed}`)
-    if (delta.failed) updates.failedItems = em.raw(`failed_items + ${delta.failed}`)
-    if (delta.skipped) updates.skippedItems = em.raw(`skipped_items + ${delta.skipped}`)
+    if (delta.processed) updates.processedItems = raw(`processed_items + ${delta.processed}`)
+    if (delta.failed) updates.failedItems = raw(`failed_items + ${delta.failed}`)
+    if (delta.skipped) updates.skippedItems = raw(`skipped_items + ${delta.skipped}`)
 
     if (Object.keys(updates).length > 0) {
       await em.nativeUpdate(ProcessingJob, { id: jobId }, updates)

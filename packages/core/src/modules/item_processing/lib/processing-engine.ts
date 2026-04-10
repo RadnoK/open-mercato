@@ -164,7 +164,7 @@ export function createProcessingEngine(deps: EngineDeps) {
     if (!progressJobId) {
       const progressScope = { tenantId: scope.tenantId, organizationId: scope.organizationId, userId: scope.userId }
       const progressJob = await progressService.createJob(
-        { totalCount: job.totalItems, label: `Processing: ${job.name ?? jobId}` },
+        { jobType: 'item-processing', name: `Processing: ${job.name ?? jobId}`, totalCount: job.totalItems, cancellable: true },
         progressScope,
       )
       progressJobId = progressJob.id
