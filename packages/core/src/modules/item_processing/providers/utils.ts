@@ -19,15 +19,20 @@ export function buildZodFromConfig(schema: Record<string, unknown>): z.ZodObject
 
     if (typeof def === 'object' && def !== null) {
       const fieldDef = def as Record<string, unknown>
-      let fieldSchema = mapSimpleType(String(fieldDef.type ?? 'string'))
+      const typeName = String(fieldDef.type ?? 'string')
+      let fieldSchema: z.ZodTypeAny = mapSimpleType(typeName)
 
-      if (fieldSchema instanceof z.ZodString) {
-        if (typeof fieldDef.minLength === 'number') fieldSchema = fieldSchema.min(fieldDef.minLength)
-        if (typeof fieldDef.maxLength === 'number') fieldSchema = fieldSchema.max(fieldDef.maxLength)
+      if (typeName === 'string') {
+        let s = fieldSchema as z.ZodString
+        if (typeof fieldDef.minLength === 'number') s = s.min(fieldDef.minLength)
+        if (typeof fieldDef.maxLength === 'number') s = s.max(fieldDef.maxLength)
+        fieldSchema = s
       }
-      if (fieldSchema instanceof z.ZodNumber) {
-        if (typeof fieldDef.min === 'number') fieldSchema = fieldSchema.min(fieldDef.min)
-        if (typeof fieldDef.max === 'number') fieldSchema = fieldSchema.max(fieldDef.max)
+      if (typeName === 'number') {
+        let n = fieldSchema as z.ZodNumber
+        if (typeof fieldDef.min === 'number') n = n.min(fieldDef.min)
+        if (typeof fieldDef.max === 'number') n = n.max(fieldDef.max)
+        fieldSchema = n
       }
 
       shape[key] = fieldDef.required ? fieldSchema : fieldSchema.optional()
