@@ -49,6 +49,7 @@ export const enabledModules: ModuleEntry[] = [
   { id: 'webhooks', from: '@open-mercato/webhooks' },
   { id: 'customer_accounts', from: '@open-mercato/core' },
   { id: 'portal', from: '@open-mercato/core' },
+  { id: 'item_processing', from: '@open-mercato/core' },
   { id: 'example', from: '@app' },
 ]
 

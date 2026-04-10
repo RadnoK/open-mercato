@@ -10,25 +10,36 @@
 
 ## Strategia podzialu pracy
 
-Modul dzieli sie na **6 workstreamow** z jasnym grafem zaleznosci. Dwie osoby pracuja na osobnych branchach i merguja do `feature/item-processing`.
+Projekt dzieli sie na **7 workstreamow** + **2 moduły**:
+- **Core module** (`packages/core/src/modules/item_processing/`) — generyczny, reużywalny
+- **Showcase app** (`apps/mercato/src/modules/customs_clearance/`) — demo customs clearance
+
+Dwie osoby pracuja na osobnych branchach. **Osoba A skupia sie na core module**, **Osoba B na showcase + integracji**.
 
 ### Graf zaleznosci
 
 ```
-WS-1: Foundation (SHARED — robimy razem na poczatku)
+WS-1: Foundation (SHARED — robimy razem)
   │
-  ├──────────────────────┐
-  │                      │
-  v                      v
-WS-2: Processing Engine  WS-3: API + Worker + UI
-(Osoba A)                (Osoba B)
-  │                      │
-  │                      │
-  v                      v
-WS-4: AI Brain           WS-5: Providers + Demo
-(Osoba A)                (Osoba B)
-  │                      │
-  └──────────┬───────────┘
+  ├──────────────────────────┐
+  │                          │
+  v                          v
+WS-2: Processing Engine    WS-7: Showcase — Customs Clearance
+(Osoba A — core module)    (Osoba B — app module)
+  │                          │
+  v                          │ (czeka na engine dla ISZTAR4+pipeline)
+WS-3: API + Worker + UI     │
+(Osoba A — core module)      │
+  │                          │
+  v                          v
+WS-4: AI Brain             WS-7 cont: ISZTAR4 + UI
+(Osoba A — core module)    (Osoba B — app module)
+  │                          │
+  v                          │
+WS-5: Built-in Providers   │
+(Osoba A — core module)      │
+  │                          │
+  └──────────┬───────────────┘
              v
 WS-6: Integration + Finalizacja (SHARED)
 ```
@@ -39,20 +50,22 @@ WS-6: Integration + Finalizacja (SHARED)
 |-----------|-------|--------|-----------|
 | WS-1: Foundation | A+B razem | `feature/item-processing` | — |
 | WS-2: Processing Engine | Osoba A | `feature/ip-engine` | WS-1 |
-| WS-3: API + Worker + UI | Osoba B | `feature/ip-api-ui` | WS-1 |
+| WS-3: API + Worker + UI | Osoba A | `feature/ip-api-ui` | WS-2 |
 | WS-4: AI Brain | Osoba A | `feature/ip-ai-brain` | WS-2 |
-| WS-5: Providers + Demo | Osoba B | `feature/ip-providers` | WS-3 |
-| WS-6: Integration | A+B razem | `feature/item-processing` | WS-4 + WS-5 |
+| WS-5: Built-in Providers | Osoba A | `feature/ip-providers` | WS-2 |
+| WS-6: Integration | A+B razem | `feature/item-processing` | WS-4 + WS-5 + WS-7 |
+| WS-7: Customs Showcase | Osoba B | `feature/customs-showcase` | WS-1 (scaffold), WS-2 (ISZTAR4 pipeline) |
 
 ### Logika podzialu
 
-**Osoba A** (backend/engine focus):
-- WS-2: Processing engine, job service, pipeline service, condition evaluator — serce logiki
-- WS-4: Agent reviewer, pipeline designer, anomaly detector — caly AI brain
+**Osoba A** (core module — `packages/core/src/modules/item_processing/`):
+- WS-2: Processing engine, job service, pipeline service, condition evaluator
+- WS-3: API routes, worker, subscriber, generic UI pages
+- WS-4: Agent reviewer, pipeline designer, anomaly detector
+- WS-5: Built-in providers (ai_transform, ai_translate, schema_validate, http_webhook), MCP tools
 
-**Osoba B** (API/UI/providers focus):
-- WS-3: Wszystkie API routes, worker, subscriber, backend pages
-- WS-5: Built-in providers (ai_transform, ai_translate, schema_validate, http_webhook), ISZTAR4, MCP tools
+**Osoba B** (showcase app — `apps/mercato/src/modules/customs_clearance/`):
+- WS-7: Document parsing (OCR + AI), consistency verification, ISZTAR4 provider, customs-specific UI, orchestration service
 
 **Dlaczego ten podzial dziala**:
 - WS-2 i WS-3 nie dotykaja tych samych plikow (engine vs routes/pages)
