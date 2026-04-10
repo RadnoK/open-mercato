@@ -9,6 +9,11 @@ import { createProcessingEngine } from './lib/processing-engine'
 import { createAgentReviewer } from './lib/agent-reviewer'
 import { createPipelineDesigner } from './lib/pipeline-designer'
 import { createAnomalyDetector } from './lib/anomaly-detector'
+import { registerStepProvider } from './lib/provider-registry'
+import { aiTransformProvider } from './providers/ai-transform.provider'
+import { aiTranslateProvider } from './providers/ai-translate.provider'
+import { schemaValidateProvider } from './providers/schema-validate.provider'
+import { httpWebhookProvider } from './providers/http-webhook.provider'
 
 type Cradle = {
   em: EntityManager
@@ -16,6 +21,12 @@ type Cradle = {
 }
 
 export function register(container: AppContainer) {
+  // Register built-in step providers
+  registerStepProvider(aiTransformProvider)
+  registerStepProvider(aiTranslateProvider)
+  registerStepProvider(schemaValidateProvider)
+  registerStepProvider(httpWebhookProvider)
+
   container.register({
     // Entity classes
     ProcessingJob: asValue(ProcessingJob),
