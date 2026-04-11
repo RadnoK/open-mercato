@@ -643,29 +643,105 @@ Save the agent's HS code selection.
 - [ ] Workflow definition seeded in `setup.ts`
 - [ ] No `any` types — zod schemas with `z.infer`
 
+## Team Split
+
+Three parallel workstreams. Jacek delivers the module scaffold + entities + zod schemas first (~1h) to unblock the other two.
+
+### Jacek: Workflow + Parsing + API
+
+Module foundation and the core document processing pipeline.
+
+| File | Purpose |
+|------|---------|
+| `index.ts` | Module metadata |
+| `acl.ts` | `customs_clearance.view`, `.create`, `.manage` |
+| `setup.ts` | Seed workflow definition, default role features |
+| `events.ts` | `customs_clearance.clearance.created`, `.parsed`, `.completed` |
+| `ce.ts` | Custom entity declarations |
+| `data/entities.ts` | ClearanceRequest, ClearanceDocument, ClearanceItem |
+| `data/validators.ts` | Zod schemas for all entities and LLM extraction |
+| `lib/openrouter.ts` | OpenRouter provider via `@ai-sdk/openai` |
+| `lib/document-parser.ts` | LLM-based structured extraction (B/L, Invoice, Packing List) |
+| `lib/consistency-checker.ts` | Cross-document validation (weights, quantities, names) |
+| `workers/parse-documents.ts` | Async worker: extract text → LLM parse → consistency check |
+| `api/post/clearances.ts` | Create clearance request |
+| `api/get/clearances.ts` | List clearance requests |
+| `api/get/clearances/[id].ts` | Get single clearance with documents, items, report |
+| `api/post/clearances/[id]/parse.ts` | Trigger async document parsing |
+| Workflow definition JSON | START → PARSE → VERIFY → CLASSIFY (user task) → END |
+
+**Delivers first**: entities + zod schemas + API stubs so Konrad and Piotr can start.
+
+### Konrad: ISZTAR4 & HS Classification
+
+ISZTAR4 API integration and the HS code selection flow.
+
+| File | Purpose |
+|------|---------|
+| `lib/isztar-client.ts` | ISZTAR4 REST API client (codes, measures, quotas) |
+| `lib/hs-code-search.ts` | LLM-assisted chapter identification + candidate ranking |
+| `api/get/clearances/[id]/isztar/[itemId].ts` | Query ISZTAR4 suggestions for a specific item |
+| `api/post/clearances/[id]/items/[itemId]/hs-code.ts` | Save agent's HS code selection |
+
+**Depends on**: `ClearanceItem` entity shape and extraction zod schemas from Jacek.
+
+**Key decisions**:
+- Uses OpenRouter (same provider as parsing) for description translation and chapter identification
+- ISZTAR4 has no search endpoint — LLM narrows the tariff tree first, then candidates are fetched and ranked
+- Agent always makes the final selection (regulatory requirement)
+
+### Piotr: Frontend / UI
+
+All backend pages and user-facing components.
+
+| File | Purpose |
+|------|---------|
+| `backend/page.tsx` | Clearance list (DataTable with status, title, items, value) |
+| `backend/clearances/new.tsx` | Upload page with 3 file zones (B/L, Invoice, Packing List) |
+| `backend/clearances/[id].tsx` | Detail page with 4 tabs (see below) |
+| `i18n/en.json` | English translations |
+| `i18n/pl.json` | Polish translations |
+
+**Detail page tabs**:
+1. **Documents** — uploaded PDFs with raw text preview
+2. **Parsed Data** — structured extraction results in table form, editable
+3. **Consistency Report** — comparison table with match/mismatch/warning badges
+4. **HS Classification** — item list with "Search ISZTAR4" button, code picker, duty rates
+
+**Depends on**: API route contracts from Jacek (can mock data until routes are live). HS classification tab wires to Konrad's ISZTAR4 routes.
+
+### Coordination Points
+
+1. **Hour 0**: Jacek shares entity shapes + zod schemas + API contracts (request/response types)
+2. **Hour 0-1**: Konrad starts `isztar-client.ts` (no dependencies); Piotr starts page layouts with mock data
+3. **Hour 1-3**: All three work in parallel on their workstreams
+4. **Hour 3-4**: Integration — wire Konrad's libs into API routes, Piotr's pages hit real APIs, end-to-end test with sample PDFs
+
 ## Module File Checklist
 
-| File | Status | Purpose |
-|------|--------|---------|
-| `index.ts` | Planned | Module metadata |
-| `acl.ts` | Planned | `customs_clearance.view`, `.create`, `.manage` |
-| `setup.ts` | Planned | Seed workflow definition |
-| `events.ts` | Planned | `customs_clearance.clearance.created`, `.parsed`, `.completed` |
-| `ce.ts` | Planned | Custom entity declarations |
-| `data/entities.ts` | Planned | ClearanceRequest, ClearanceDocument, ClearanceItem |
-| `data/validators.ts` | Planned | Zod schemas for all entities and LLM extraction |
-| `lib/openrouter.ts` | Planned | OpenRouter provider via `@ai-sdk/openai` |
-| `lib/document-parser.ts` | Planned | LLM-based structured extraction |
-| `lib/consistency-checker.ts` | Planned | Cross-document validation |
-| `lib/isztar-client.ts` | Planned | ISZTAR4 REST API client |
-| `lib/hs-code-search.ts` | Planned | LLM-assisted HS code lookup |
-| `api/` | Planned | CRUD + parse + classify routes |
-| `backend/` | Planned | List, new, detail pages |
-| `workers/parse-documents.ts` | Planned | Async LLM parsing worker |
-| `i18n/en.json`, `i18n/pl.json` | Planned | Translations |
+| File | Owner | Status | Purpose |
+|------|-------|--------|---------|
+| `index.ts` | Jacek | Planned | Module metadata |
+| `acl.ts` | Jacek | Planned | Feature-based permissions |
+| `setup.ts` | Jacek | Planned | Seed workflow definition |
+| `events.ts` | Jacek | Planned | Typed event declarations |
+| `ce.ts` | Jacek | Planned | Custom entity declarations |
+| `data/entities.ts` | Jacek | Planned | ClearanceRequest, ClearanceDocument, ClearanceItem |
+| `data/validators.ts` | Jacek | Planned | Zod schemas for all entities and LLM extraction |
+| `lib/openrouter.ts` | Jacek | Planned | OpenRouter provider via `@ai-sdk/openai` |
+| `lib/document-parser.ts` | Jacek | Planned | LLM-based structured extraction |
+| `lib/consistency-checker.ts` | Jacek | Planned | Cross-document validation |
+| `lib/isztar-client.ts` | Konrad | Planned | ISZTAR4 REST API client |
+| `lib/hs-code-search.ts` | Konrad | Planned | LLM-assisted HS code lookup |
+| `api/` (CRUD + parse) | Jacek | Planned | Create, list, get, parse clearances |
+| `api/` (ISZTAR4 + HS) | Konrad | Planned | HS code search and selection |
+| `backend/` | Piotr | Planned | List, new, detail pages |
+| `workers/parse-documents.ts` | Jacek | Planned | Async LLM parsing worker |
+| `i18n/en.json`, `i18n/pl.json` | Piotr | Planned | Translations |
 
 ## Changelog
 
 | Date | Change |
 |------|--------|
 | 2026-04-11 | Initial draft |
+| 2026-04-11 | Added team split: Jacek (workflow/parsing/API), Konrad (ISZTAR4/HS), Piotr (UI) |
